@@ -6,6 +6,7 @@ const TZ = 'Africa/Johannesburg';
 const LOG_SPREADSHEET_ID = ''; // optional
 /* === END CONFIG === */
 
+
 /* Helper: safe calendar */
 function getOrCreateCalendarByName(name) {
   let safeName = (typeof name === 'string') ? name.trim() : '';
@@ -15,6 +16,7 @@ function getOrCreateCalendarByName(name) {
   return CalendarApp.createCalendar(safeName);
 }
 
+
 /* Helper: logging sheet */
 function getOrCreateLogSheet() {
   if (LOG_SPREADSHEET_ID && LOG_SPREADSHEET_ID.trim()) {
@@ -23,23 +25,33 @@ function getOrCreateLogSheet() {
   const files = DriveApp.getFilesByName(SHEET_NAME);
   if (files.hasNext()) return SpreadsheetApp.open(files.next());
   const ss = SpreadsheetApp.create(SHEET_NAME);
-  ss.getActiveSheet().appendRow(['Timestamp','OwnerName','OwnerEmail','DogName','DOB','ReminderDays','Source','CalendarEventId']);
+  ss.getActiveSheet().appendRow([
+    'Timestamp','OwnerName','OwnerEmail','DogName','DOB',
+    'ReminderDays','Source','CalendarEventId'
+  ]);
   return ss;
 }
+
 
 /* compute next occurrence */
 function nextOccurrenceISO(dobString) {
   const parts = (dobString||'').split('-');
   if (parts.length < 3) throw new Error('Invalid dob format. Use YYYY-MM-DD');
+
   const month = parseInt(parts[1],10);
   const day = parseInt(parts[2],10);
+
   if (isNaN(month) || isNaN(day)) throw new Error('Invalid month/day in DOB');
+
   const now = new Date();
   let year = now.getFullYear();
+
   const candidate = new Date(year, month-1, day, 9, 0, 0);
-  if (candidate.getTime() < new Date().getTime()) year++;
+  if (candidate.getTime() < now.getTime()) year++;
+
   const start = new Date(year, month-1, day, 9, 0, 0);
   const end = new Date(year, month-1, day, 9, 30, 0);
+
   return {
     startISO: Utilities.formatDate(start, TZ, "yyyy-MM-dd'T'HH:mm:ss"),
     endISO: Utilities.formatDate(end, TZ, "yyyy-MM-dd'T'HH:mm:ss"),
@@ -47,27 +59,35 @@ function nextOccurrenceISO(dobString) {
   };
 }
 
-/* Build HTML response */
+
+/* HTML response back to iframe */
 function htmlPostMessage(obj) {
   const payload = JSON.stringify(obj).replace(/</g, '\\u003c');
+
   const html = "<!doctype html><html><head><meta charset='utf-8'></head><body>"
     + "<script>"
     + "try{window.parent.postMessage(" + payload + ", '*');}catch(e){}"
     + "document.write('<div style=\"font-family:Arial,sans-serif;padding:20px;font-size:15px;\">Thanks — you may close this window.</div>');"
     + "</script></body></html>";
-  return HtmlService.createHtmlOutput(html).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+
+  return HtmlService.createHtmlOutput(html)
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
-/* Main handler */
+
+/* MAIN HANDLER */
 function doPost(e) {
   try {
+
     let payload = {};
+
     if (e.postData && e.postData.type && e.postData.type.indexOf('application/json') !== -1) {
       payload = JSON.parse(e.postData.contents);
     } else {
       payload = e.parameter || {};
     }
 
+    // Honeypot spam check
     if (payload.hp && String(payload.hp).trim() !== '') {
       return htmlPostMessage({ok:false, err:'spam detected'});
     }
@@ -90,10 +110,17 @@ function doPost(e) {
 
     const rrule = `RRULE:FREQ=YEARLY;BYMONTH=${month};BYMONTHDAY=${day}`;
 
-    /* ✅ UPDATED: attendees include deli + owner */
+    /* ✅ UPDATED EVENT STRUCTURE */
     const eventResource = {
-      summary: `${dogName} — Birthday`,
-      description: `Birthday for ${dogName}. Owner: ${ownerName} (${ownerEmail}). Added via ${source}`,
+      summary: `${dogName} (Owner: ${ownerName}) — Birthday`,
+      description:
+`🐶 Dog: ${dogName}
+👤 Owner: ${ownerName}
+📧 Email: ${ownerEmail}
+
+🎁 Action: Send birthday reward
+
+Added via: ${source}`,
       start: { dateTime: startISO, timeZone: TZ },
       end: { dateTime: endISO, timeZone: TZ },
       recurrence: [ rrule ],
@@ -112,10 +139,22 @@ function doPost(e) {
 
     const inserted = Calendar.Events.insert(eventResource, calId);
 
+    /* LOG */
     const ss = getOrCreateLogSheet();
-    ss.getActiveSheet().appendRow([new Date().toISOString(), ownerName, ownerEmail, dogName, dob, reminderDays, source, inserted.id || '']);
+    ss.getActiveSheet().appendRow([
+      new Date().toISOString(),
+      ownerName,
+      ownerEmail,
+      dogName,
+      dob,
+      reminderDays,
+      source,
+      inserted.id || ''
+    ]);
 
-    // Customer confirmation
+    /* EMAILS */
+
+    // Customer
     MailApp.sendEmail({
       to: ownerEmail,
       subject: `Birthday added for ${dogName}`,
@@ -131,7 +170,7 @@ Reminder: ${reminderDays} day(s) before.
 — Carniraw`
     });
 
-    // Deli notification
+    // Deli team
     MailApp.sendEmail({
       to: "deli@carniraw.co.za",
       subject: `New Birthday Added: ${dogName}`,
@@ -145,7 +184,7 @@ DOB: ${dob}
 Event ID: ${inserted.id}`
     });
 
-    // Admin notification
+    // Admin
     MailApp.sendEmail({
       to: ADMIN_EMAIL,
       subject: `New birthday added: ${dogName}`,
@@ -156,7 +195,11 @@ DOB: ${dob}
 Event ID: ${inserted.id}`
     });
 
-    return htmlPostMessage({ok:true, eventId: inserted.id || '', calendarId: calId});
+    return htmlPostMessage({
+      ok:true,
+      eventId: inserted.id || '',
+      calendarId: calId
+    });
 
   } catch (err) {
     console.error(err);
