@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Carniraw — Birthday Club</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Poiret+One&family=Quicksand:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --brand:#289dcc;
+  --muted:#666;
+  --card:#fffaf7;
+  --accent:#3d4045;
+  --error:#c94b4b;
+}
+
+body{
+  font-family:'Quicksand',sans-serif;
+  margin:0;
+  background:#fff;
+}
+
+.wrap{
+  max-width:720px;
+  margin:50px auto;
+  padding:24px;
+  background:var(--card);
+  border-radius:12px;
+  box-shadow:0 8px 26px rgba(0,0,0,0.06);
+}
+
+h1{
+  font-family:'Poiret One',cursive;
+  margin-bottom:8px;
+}
+
+p{
+  color:var(--muted);
+}
+
+label{
+  display:block;
+  margin-top:12px;
+  font-weight:600;
+}
+
+input{
+  width:100%;
+  padding:10px;
+  border-radius:8px;
+  border:1px solid #e8e8e8;
+  margin-top:6px;
+}
+
+button{
+  margin-top:16px;
+  background:var(--brand);
+  color:#fff;
+  padding:10px 14px;
+  border:0;
+  border-radius:8px;
+  cursor:pointer;
+  font-weight:700;
+}
+
+.msg{
+  margin-top:12px;
+  font-size:14px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="wrap">
+  <h1>Join the Birthday Club</h1>
+  <p>Add your dog’s birthday and we’ll schedule a yearly reminder.</p>
+
+  <form id="birthdayForm" target="hidden_iframe" method="POST">
+
+    <label>Owner Name</label>
+    <input name="ownerName" required>
+
+    <label>Owner Email</label>
+    <input name="ownerEmail" type="email" required>
+
+    <label>Dog Name</label>
+    <input name="dogName" required>
+
+    <label>Date of Birth</label>
+    <input name="dob" type="date" required>
+
+    <input type="hidden" name="reminderDays" value="0">
+    <input type="hidden" name="source" value="website">
+
+    <!-- Honeypot -->
+    <input name="hp" style="display:none">
+
+    <button type="submit">Add Birthday</button>
+
+    <div id="msg" class="msg"></div>
+  </form>
+
+  <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;"></iframe>
+</div>
+
+<script>
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyaE41ij3u3PdkYeNM18kp0QC2zL90ljR0yB11EznRTmdYsxl80LDR8hTQYN0K9YFzq/exec";
+
+const form = document.getElementById("birthdayForm");
+const msg = document.getElementById("msg");
+const iframe = document.getElementById("hidden_iframe");
+
+form.action = SCRIPT_URL;
+
+let waiting = false;
+let timeout = null;
+
+function startWaiting() {
+  waiting = true;
+  msg.style.color = "#666";
+  msg.textContent = "Submitting...";
+
+  timeout = setTimeout(() => {
+    if (waiting) {
+      waiting = false;
+      msg.style.color = "#c94b4b";
+      msg.textContent = "No response from server. Try again.";
+      console.warn("Timeout: no iframe response");
+    }
+  }, 15000);
+}
+
+function stopWaiting(success = true) {
+  waiting = false;
+  clearTimeout(timeout);
+
+  if (success) {
+    msg.style.color = "#289dcc";
+    msg.textContent = "🎉 Birthday added successfully!";
+    form.reset();
+  } else {
+    msg.style.color = "#c94b4b";
+    msg.textContent = "Something went wrong. Please try again.";
+  }
+}
+
+/* ✅ KEY CHANGE: Listen for iframe load */
+iframe.addEventListener("load", () => {
+  if (!waiting) return;
+
+  console.log("Iframe loaded — assuming success");
+  stopWaiting(true);
+});
+
+/* Submit handler */
+form.addEventListener("submit", (e) => {
+  const hp = form.hp.value;
+
+  if (hp && hp.trim() !== "") {
+    e.preventDefault();
+    msg.textContent = "Spam blocked.";
+    return;
+  }
+
+  startWaiting();
+});
+</script>
+
+</body>
+</html>

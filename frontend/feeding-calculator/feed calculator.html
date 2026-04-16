@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Carniraw — Raw Feeding Calculator</title>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --brand:#8AA66A;
+  --muted:#666;
+  --card:#F6F3EE;
+  --accent:#3d4045;
+  --error:#c94b4b;
+  --success:#286b4e;
+}
+.carn-wrap{font-family:'Quicksand',sans-serif;color:var(--accent)}
+.carn-wrap .wrap{max-width:820px;margin:0 auto;padding:28px 0}
+.carn-wrap .card{background:var(--card);padding:26px;border-radius:12px;box-shadow:0 8px 26px rgba(0,0,0,0.06)}
+.carn-wrap h1{margin:0 0 6px;color:var(--accent);font-size:26px}
+.carn-wrap p.lead{color:var(--muted);margin:0 0 18px}
+.carn-wrap label{display:block;margin:12px 0 6px;font-weight:600}
+.carn-wrap input[type="number"], .carn-wrap select{width:100%;padding:10px;border-radius:8px;border:1px solid #e8e8e8;margin-bottom:6px;box-sizing:border-box}
+.carn-wrap .row{display:flex;gap:12px}
+.carn-wrap .col{flex:1}
+.carn-wrap button{background:var(--brand);color:#fff;padding:10px 14px;border:0;border-radius:8px;cursor:pointer;font-weight:700}
+.carn-wrap .result{background:#fff;padding:16px;border-radius:8px;margin-top:16px;border:1px solid #eee}
+.carn-wrap table{width:100%;border-collapse:collapse;margin-top:8px}
+.carn-wrap td,.carn-wrap th{padding:8px;border-bottom:1px solid #f1f1f1;text-align:left}
+.carn-wrap .muted{color:var(--muted);font-size:13px}
+.carn-msg{display:none;margin-top:12px;padding:8px;border-radius:6px;font-size:14px}
+@media(max-width:720px){ .carn-wrap .row{flex-direction:column} }
+</style>
+</head>
+
+<body>
+<div class="carn-wrap">
+  <div class="wrap">
+
+    <div class="card">
+      <h1>Raw Feeding Calculator</h1>
+      <p class="lead">Calculates daily feed (g) using % of body weight adjusted for age, condition, and activity.</p>
+
+      <label>Weight (kg)</label>
+      <input id="weight" type="number" min="0.1" step="0.1" placeholder="e.g 10">
+
+      <div class="row">
+        <div class="col">
+          <label>Age (years)</label>
+          <input id="ageYears" type="number" min="0" step="1" value="0">
+        </div>
+        <div class="col">
+          <label>Age (months)</label>
+          <input id="ageMonths" type="number" min="0" max="11" step="1" value="0">
+        </div>
+      </div>
+
+      <label>Body Condition</label>
+      <select id="condition">
+        <option value="under">Too Skinny</option>
+        <option value="ideal" selected>Just Right</option>
+        <option value="rounded">Rounded</option>
+        <option value="chunky">Chunky</option>
+      </select>
+
+      <label>Activity</label>
+      <select id="activity">
+        <option value="low">Low</option>
+        <option value="moderate" selected>Moderate</option>
+        <option value="high">High</option>
+      </select>
+
+      <div style="margin-top:12px">
+        <button id="calcBtn">Calculate</button>
+        <button id="resetBtn" style="background:#fff;color:var(--brand);border:1px solid #e8e8e8;margin-left:8px">Reset</button>
+      </div>
+
+      <div id="result" class="result" style="display:none"></div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h2>Daily Feed Breakdown</h2>
+      <p class="muted" id="summaryNote">Results will appear after calculation.</p>
+
+      <table>
+        <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+        <tbody id="metricsBody"></tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+
+function determineBasePct(ageMonths, condition) {
+
+  // EDGE CASE FIX
+  if (ageMonths <= 0) {
+    return 2.0;
+  }
+
+  // Puppies ONLY if not overweight
+  if (ageMonths < 4 && condition !== 'chunky' && condition !== 'rounded') return 8.0;
+  if (ageMonths < 6 && condition !== 'chunky' && condition !== 'rounded') return 7.0;
+  if (ageMonths < 12 && condition !== 'chunky' && condition !== 'rounded') return 6.0;
+
+  // Adult / condition-based
+  switch (condition) {
+    case 'under': return 3.0;
+    case 'ideal': return 2.5;
+    case 'rounded': return 2.25;
+    case 'chunky': return 2.0;
+    default: return 2.5;
+  }
+}
+
+function activityMultiplier(level) {
+  if (level === 'low') return 0.9;
+  if (level === 'high') return 1.1;
+  return 1.0;
+}
+
+function gramsFromPct(weightKg, pct) {
+  return weightKg * 1000 * (pct / 100);
+}
+
+function roundTo(n, d){
+  const m = Math.pow(10, d || 0);
+  return Math.round(n * m) / m;
+}
+
+function suggestedMeals(ageMonths) {
+  if (ageMonths < 6) return 3;
+  return 2;
+}
+
+const weightEl = document.getElementById('weight');
+const yearsEl = document.getElementById('ageYears');
+const monthsEl = document.getElementById('ageMonths');
+const condEl = document.getElementById('condition');
+const activityEl = document.getElementById('activity');
+const resultEl = document.getElementById('result');
+const metricsBody = document.getElementById('metricsBody');
+const summaryNote = document.getElementById('summaryNote');
+
+document.getElementById("calcBtn").addEventListener("click", function(e){
+  e.preventDefault();
+
+  const w = Number(weightEl.value);
+  const years = Number(yearsEl.value || 0);
+  const months = Number(monthsEl.value || 0);
+  const ageMonths = (years * 12) + months;
+
+  if (isNaN(w) || w <= 0){
+    alert("Enter a valid weight");
+    return;
+  }
+
+  const basePct = determineBasePct(ageMonths, condEl.value);
+  const mult = activityMultiplier(activityEl.value);
+
+  const pctUsed = roundTo((basePct * mult) + 0.25, 2);
+
+  const grams = gramsFromPct(w, pctUsed);
+  const meals = suggestedMeals(ageMonths);
+  const perMeal = grams / meals;
+
+  metricsBody.innerHTML = `
+    <tr><td>Weight</td><td>${w} kg</td></tr>
+    <tr><td>Age</td><td>${years}y ${months}m</td></tr>
+    <tr><td>Condition</td><td>${condEl.value}</td></tr>
+    <tr><td>Activity</td><td>${activityEl.value}</td></tr>
+    <tr><td>Percent Used</td><td>${pctUsed}%</td></tr>
+    <tr><td>Daily Feed</td><td>${roundTo(grams,1)} g</td></tr>
+    <tr><td>Meals</td><td>${meals}</td></tr>
+    <tr><td>Per Meal</td><td>${roundTo(perMeal,1)} g</td></tr>
+  `;
+
+  resultEl.style.display = "block";
+  resultEl.innerHTML = "<strong>Calculation complete</strong>";
+
+  summaryNote.textContent = "Includes +0.25% adjustment and condition-aware feeding logic.";
+});
+
+document.getElementById("resetBtn").addEventListener("click", function(e){
+  e.preventDefault();
+  weightEl.value = "";
+  yearsEl.value = "0";
+  monthsEl.value = "0";
+  condEl.value = "ideal";
+  activityEl.value = "moderate";
+  metricsBody.innerHTML = "";
+  resultEl.style.display = "none";
+  summaryNote.textContent = "Results will appear after calculation.";
+});
+
+})();
+</script>
+
+</body>
+</html>
