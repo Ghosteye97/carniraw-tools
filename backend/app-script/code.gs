@@ -47,9 +47,9 @@ function nextOccurrenceISO(dobString) {
   };
 }
 
-/* Build HTML response that posts message to parent then shows small page */
+/* Build HTML response */
 function htmlPostMessage(obj) {
-  const payload = JSON.stringify(obj).replace(/</g, '\\u003c'); // avoid </script> injection
+  const payload = JSON.stringify(obj).replace(/</g, '\\u003c');
   const html = "<!doctype html><html><head><meta charset='utf-8'></head><body>"
     + "<script>"
     + "try{window.parent.postMessage(" + payload + ", '*');}catch(e){}"
@@ -61,7 +61,6 @@ function htmlPostMessage(obj) {
 /* Main handler */
 function doPost(e) {
   try {
-    // parse payload (form-encoded or JSON)
     let payload = {};
     if (e.postData && e.postData.type && e.postData.type.indexOf('application/json') !== -1) {
       payload = JSON.parse(e.postData.contents);
@@ -69,7 +68,6 @@ function doPost(e) {
       payload = e.parameter || {};
     }
 
-    // honeypot
     if (payload.hp && String(payload.hp).trim() !== '') {
       return htmlPostMessage({ok:false, err:'spam detected'});
     }
@@ -85,53 +83,81 @@ function doPost(e) {
       return htmlPostMessage({ok:false, err:'missing required fields (ownerEmail, dogName, dob)'});
     }
 
-    // create/find calendar
     const cal = getOrCreateCalendarByName(CALENDAR_NAME);
     const calId = cal.getId();
 
-    // compute next occurrence
     const {startISO, endISO, year, month, day} = nextOccurrenceISO(dob);
 
-    // RRULE yearly
     const rrule = `RRULE:FREQ=YEARLY;BYMONTH=${month};BYMONTHDAY=${day}`;
 
-    // event resource (Calendar Advanced API)
-  const eventResource = {
-    summary: `${dogName} — Birthday`,
-    description: `Birthday for ${dogName}. Owner: ${ownerName} (${ownerEmail}). Added via ${source}`,
-    start: { dateTime: startISO, timeZone: TZ },
-    end: { dateTime: endISO, timeZone: TZ },
-    recurrence: [ rrule ],
-    attendees: [
-      { email: "deli@carniraw.co.za" }   // email must be in quotes
-    ],
-    reminders: {
-      useDefault: false,
-      overrides: [
-        { method: 'popup', minutes: Math.max(1,reminderDays) * 24 * 60 },
-        { method: 'email', minutes: Math.max(1,reminderDays) * 24 * 60 }
-      ]
-    }
-  };
+    /* ✅ UPDATED: attendees include deli + owner */
+    const eventResource = {
+      summary: `${dogName} — Birthday`,
+      description: `Birthday for ${dogName}. Owner: ${ownerName} (${ownerEmail}). Added via ${source}`,
+      start: { dateTime: startISO, timeZone: TZ },
+      end: { dateTime: endISO, timeZone: TZ },
+      recurrence: [ rrule ],
+      attendees: [
+        { email: "deli@carniraw.co.za" },
+        ...(ownerEmail ? [{ email: ownerEmail }] : [])
+      ],
+      reminders: {
+        useDefault: false,
+        overrides: [
+          { method: 'popup', minutes: Math.max(1,reminderDays) * 24 * 60 },
+          { method: 'email', minutes: Math.max(1,reminderDays) * 24 * 60 }
+        ]
+      }
+    };
 
-    // insert event using Calendar Advanced (ensure Calendar API enabled under Advanced Services)
     const inserted = Calendar.Events.insert(eventResource, calId);
 
-    // log to sheet
     const ss = getOrCreateLogSheet();
     ss.getActiveSheet().appendRow([new Date().toISOString(), ownerName, ownerEmail, dogName, dob, reminderDays, source, inserted.id || '']);
 
-    // send confirmation emails
-    try {
-      MailApp.sendEmail({ to: ownerEmail, subject: `Birthday added for ${dogName}`, body:
-        `Hi ${ownerName || 'there'},\n\nWe've added ${dogName}'s birthday to the ${CALENDAR_NAME} calendar.\n\nDate: ${dob}\nNext occurrence: ${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}\nReminder: ${reminderDays} day(s) before.\n\n— Carniraw`
-      , cc: ADMIN_EMAIL });
-      MailApp.sendEmail(ADMIN_EMAIL, `New birthday added: ${dogName}`, `Owner: ${ownerName} <${ownerEmail}>\nDog: ${dogName}\nDOB: ${dob}\nEvent ID: ${inserted.id}`);
-    } catch(mailErr){
-      console.warn('Mail send failed: ' + mailErr);
-    }
+    // Customer confirmation
+    MailApp.sendEmail({
+      to: ownerEmail,
+      subject: `Birthday added for ${dogName}`,
+      body:
+`Hi ${ownerName || 'there'},
+
+We've added ${dogName}'s birthday to the Carniraw calendar.
+
+Date: ${dob}
+Next occurrence: ${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}
+Reminder: ${reminderDays} day(s) before.
+
+— Carniraw`
+    });
+
+    // Deli notification
+    MailApp.sendEmail({
+      to: "deli@carniraw.co.za",
+      subject: `New Birthday Added: ${dogName}`,
+      body:
+`New birthday entry submitted:
+
+Owner: ${ownerName} <${ownerEmail}>
+Dog: ${dogName}
+DOB: ${dob}
+
+Event ID: ${inserted.id}`
+    });
+
+    // Admin notification
+    MailApp.sendEmail({
+      to: ADMIN_EMAIL,
+      subject: `New birthday added: ${dogName}`,
+      body:
+`Owner: ${ownerName} <${ownerEmail}>
+Dog: ${dogName}
+DOB: ${dob}
+Event ID: ${inserted.id}`
+    });
 
     return htmlPostMessage({ok:true, eventId: inserted.id || '', calendarId: calId});
+
   } catch (err) {
     console.error(err);
     return htmlPostMessage({ok:false, err: String(err)});
