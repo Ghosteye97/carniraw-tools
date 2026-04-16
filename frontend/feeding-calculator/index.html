@@ -12,16 +12,14 @@
   --muted:#666;
   --card:#F6F3EE;
   --accent:#3d4045;
-  --error:#c94b4b;
-  --success:#286b4e;
 }
 .carn-wrap{font-family:'Quicksand',sans-serif;color:var(--accent)}
 .carn-wrap .wrap{max-width:820px;margin:0 auto;padding:28px 0}
 .carn-wrap .card{background:var(--card);padding:26px;border-radius:12px;box-shadow:0 8px 26px rgba(0,0,0,0.06)}
-.carn-wrap h1{margin:0 0 6px;color:var(--accent);font-size:26px}
+.carn-wrap h1{margin:0 0 6px;font-size:26px}
 .carn-wrap p.lead{color:var(--muted);margin:0 0 18px}
 .carn-wrap label{display:block;margin:12px 0 6px;font-weight:600}
-.carn-wrap input[type="number"], .carn-wrap select{width:100%;padding:10px;border-radius:8px;border:1px solid #e8e8e8;margin-bottom:6px;box-sizing:border-box}
+.carn-wrap input, .carn-wrap select{width:100%;padding:10px;border-radius:8px;border:1px solid #e8e8e8;margin-bottom:6px}
 .carn-wrap .row{display:flex;gap:12px}
 .carn-wrap .col{flex:1}
 .carn-wrap button{background:var(--brand);color:#fff;padding:10px 14px;border:0;border-radius:8px;cursor:pointer;font-weight:700}
@@ -29,7 +27,6 @@
 .carn-wrap table{width:100%;border-collapse:collapse;margin-top:8px}
 .carn-wrap td,.carn-wrap th{padding:8px;border-bottom:1px solid #f1f1f1;text-align:left}
 .carn-wrap .muted{color:var(--muted);font-size:13px}
-.carn-msg{display:none;margin-top:12px;padding:8px;border-radius:6px;font-size:14px}
 @media(max-width:720px){ .carn-wrap .row{flex-direction:column} }
 </style>
 </head>
@@ -43,16 +40,16 @@
       <p class="lead">Calculates daily feed (g) using % of body weight adjusted for age, condition, and activity.</p>
 
       <label>Weight (kg)</label>
-      <input id="weight" type="number" min="0.1" step="0.1" placeholder="e.g 10">
+      <input id="weight" type="number" min="0.1" step="0.1">
 
       <div class="row">
         <div class="col">
           <label>Age (years)</label>
-          <input id="ageYears" type="number" min="0" step="1" value="0">
+          <input id="ageYears" type="number" min="0" value="0">
         </div>
         <div class="col">
           <label>Age (months)</label>
-          <input id="ageMonths" type="number" min="0" max="11" step="1" value="0">
+          <input id="ageMonths" type="number" min="0" max="11" value="0">
         </div>
       </div>
 
@@ -73,7 +70,7 @@
 
       <div style="margin-top:12px">
         <button id="calcBtn">Calculate</button>
-        <button id="resetBtn" style="background:#fff;color:var(--brand);border:1px solid #e8e8e8;margin-left:8px">Reset</button>
+        <button id="resetBtn" style="background:#fff;color:#8AA66A;border:1px solid #e8e8e8;margin-left:8px">Reset</button>
       </div>
 
       <div id="result" class="result" style="display:none"></div>
@@ -97,17 +94,12 @@
 
 function determineBasePct(ageMonths, condition) {
 
-  // EDGE CASE FIX
-  if (ageMonths <= 0) {
-    return 2.0;
-  }
+  if (ageMonths <= 0) return 2.0;
 
-  // Puppies ONLY if not overweight
   if (ageMonths < 4 && condition !== 'chunky' && condition !== 'rounded') return 8.0;
   if (ageMonths < 6 && condition !== 'chunky' && condition !== 'rounded') return 7.0;
   if (ageMonths < 12 && condition !== 'chunky' && condition !== 'rounded') return 6.0;
 
-  // Adult / condition-based
   switch (condition) {
     case 'under': return 3.0;
     case 'ideal': return 2.5;
@@ -133,8 +125,12 @@ function roundTo(n, d){
 }
 
 function suggestedMeals(ageMonths) {
-  if (ageMonths < 6) return 3;
-  return 2;
+  return ageMonths < 6 ? 3 : 2;
+}
+
+function sendHeight() {
+  const height = document.body.scrollHeight;
+  window.parent.postMessage({ type: "resize-iframe", height }, "*");
 }
 
 const weightEl = document.getElementById('weight');
@@ -183,19 +179,35 @@ document.getElementById("calcBtn").addEventListener("click", function(e){
   resultEl.innerHTML = "<strong>Calculation complete</strong>";
 
   summaryNote.textContent = "Includes +0.25% adjustment and condition-aware feeding logic.";
+
+  sendHeight(); // ✅ critical fix
 });
 
 document.getElementById("resetBtn").addEventListener("click", function(e){
   e.preventDefault();
+
   weightEl.value = "";
   yearsEl.value = "0";
   monthsEl.value = "0";
   condEl.value = "ideal";
   activityEl.value = "moderate";
+
   metricsBody.innerHTML = "";
   resultEl.style.display = "none";
   summaryNote.textContent = "Results will appear after calculation.";
+
+  sendHeight(); // ✅ critical fix
 });
+
+// initial load
+window.addEventListener("load", () => {
+  sendHeight();
+  setTimeout(sendHeight, 500);
+});
+
+// observe changes
+const observer = new MutationObserver(sendHeight);
+observer.observe(document.body, { childList: true, subtree: true });
 
 })();
 </script>
