@@ -1,6 +1,10 @@
 <script>
 (function(){
 
+document.addEventListener("DOMContentLoaded", function(){
+
+/* ===== ORIGINAL LOGIC (UNCHANGED) ===== */
+
 function determineBasePct(ageMonths, condition) {
 
   if (ageMonths <= 0) return 2.0;
@@ -37,7 +41,8 @@ function suggestedMeals(ageMonths) {
   return ageMonths < 6 ? 3 : 2;
 }
 
-/* 🔥 MUCH MORE RELIABLE HEIGHT FUNCTION */
+/* ===== HEIGHT HANDLING ===== */
+
 function sendHeight() {
   const height = Math.max(
     document.body.scrollHeight,
@@ -50,6 +55,8 @@ function sendHeight() {
   }, "*");
 }
 
+/* ===== ELEMENTS ===== */
+
 const weightEl = document.getElementById('weight');
 const yearsEl = document.getElementById('ageYears');
 const monthsEl = document.getElementById('ageMonths');
@@ -59,7 +66,19 @@ const resultEl = document.getElementById('result');
 const metricsBody = document.getElementById('metricsBody');
 const summaryNote = document.getElementById('summaryNote');
 
-document.getElementById("calcBtn").addEventListener("click", function(e){
+const calcBtn = document.getElementById("calcBtn");
+const resetBtn = document.getElementById("resetBtn");
+
+/* ===== SAFETY CHECK ===== */
+
+if (!calcBtn || !resetBtn || !weightEl || !yearsEl || !monthsEl) {
+  console.error("Calculator elements missing — script stopped");
+  return;
+}
+
+/* ===== CALCULATE ===== */
+
+calcBtn.addEventListener("click", function(e){
   e.preventDefault();
 
   const w = Number(weightEl.value);
@@ -95,15 +114,16 @@ document.getElementById("calcBtn").addEventListener("click", function(e){
   resultEl.style.display = "block";
   resultEl.innerHTML = "<strong>Calculation complete</strong>";
 
-  summaryNote.textContent = "Includes +0.25% adjustment and condition-aware feeding logic.";
+  summaryNote.textContent = "Includes +0.25% adjustment as per Carniraw feeding guideline.";
 
-  /* 🔥 MULTIPLE RESIZE TRIGGERS */
   sendHeight();
   setTimeout(sendHeight, 200);
   setTimeout(sendHeight, 600);
 });
 
-document.getElementById("resetBtn").addEventListener("click", function(e){
+/* ===== RESET ===== */
+
+resetBtn.addEventListener("click", function(e){
   e.preventDefault();
 
   weightEl.value = "";
@@ -114,28 +134,29 @@ document.getElementById("resetBtn").addEventListener("click", function(e){
 
   metricsBody.innerHTML = "";
   resultEl.style.display = "none";
+
   summaryNote.textContent = "Results will appear after calculation.";
 
   sendHeight();
 });
 
-/* 🔥 LOAD + MULTIPLE FIRINGS */
+/* ===== AUTO RESIZE ===== */
+
 window.addEventListener("load", () => {
   sendHeight();
   setTimeout(sendHeight, 300);
   setTimeout(sendHeight, 800);
 });
 
-/* 🔥 OBSERVER */
 const observer = new MutationObserver(() => {
   sendHeight();
 });
 observer.observe(document.body, { childList: true, subtree: true });
 
-/* 🔥 USER INTERACTION SAFETY */
 document.addEventListener("click", () => {
   setTimeout(sendHeight, 200);
 });
 
+});
 })();
 </script>
