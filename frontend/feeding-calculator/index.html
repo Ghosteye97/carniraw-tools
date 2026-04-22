@@ -1,12 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carniraw Feeding Calculator</title>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 20px;
+}
+
+label {
+  display: block;
+  margin-top: 10px;
+}
+
+input, select {
+  width: 100%;
+  padding: 8px;
+  margin-top: 5px;
+}
+
+button {
+  margin-top: 15px;
+  padding: 10px;
+  cursor: pointer;
+}
+
+#result {
+  margin-top: 20px;
+  display: none;
+}
+
+table {
+  width: 100%;
+  margin-top: 10px;
+  border-collapse: collapse;
+}
+
+td {
+  padding: 6px;
+  border-bottom: 1px solid #ddd;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Raw Feeding Calculator</h2>
+
+<label>Weight (kg)</label>
+<input id="weight" type="number" step="0.1">
+
+<label>Age (Years)</label>
+<input id="ageYears" type="number" value="0">
+
+<label>Age (Months)</label>
+<input id="ageMonths" type="number" value="0">
+
+<label>Body Condition</label>
+<select id="condition">
+  <option value="under">Underweight</option>
+  <option value="ideal" selected>Ideal</option>
+  <option value="rounded">Rounded</option>
+  <option value="chunky">Chunky</option>
+</select>
+
+<label>Activity Level</label>
+<select id="activity">
+  <option value="low">Low</option>
+  <option value="moderate" selected>Moderate</option>
+  <option value="high">High</option>
+</select>
+
+<button id="calcBtn">Calculate</button>
+<button id="resetBtn">Reset</button>
+
+<div id="result">
+  <strong>Calculation complete</strong>
+  <table>
+    <tbody id="metricsBody"></tbody>
+  </table>
+  <p id="summaryNote">Results will appear after calculation.</p>
+</div>
+
 <script>
 (function(){
 
 document.addEventListener("DOMContentLoaded", function(){
 
-/* ===== ORIGINAL LOGIC (UNCHANGED) ===== */
-
 function determineBasePct(ageMonths, condition) {
-
   if (ageMonths <= 0) return 2.0;
 
   if (ageMonths < 4 && condition !== 'chunky' && condition !== 'rounded') return 8.0;
@@ -41,8 +125,7 @@ function suggestedMeals(ageMonths) {
   return ageMonths < 6 ? 3 : 2;
 }
 
-/* ===== HEIGHT HANDLING ===== */
-
+/* HEIGHT HANDLER */
 function sendHeight() {
   const height = Math.max(
     document.body.scrollHeight,
@@ -55,8 +138,7 @@ function sendHeight() {
   }, "*");
 }
 
-/* ===== ELEMENTS ===== */
-
+/* ELEMENTS */
 const weightEl = document.getElementById('weight');
 const yearsEl = document.getElementById('ageYears');
 const monthsEl = document.getElementById('ageMonths');
@@ -65,19 +147,10 @@ const activityEl = document.getElementById('activity');
 const resultEl = document.getElementById('result');
 const metricsBody = document.getElementById('metricsBody');
 const summaryNote = document.getElementById('summaryNote');
-
 const calcBtn = document.getElementById("calcBtn");
 const resetBtn = document.getElementById("resetBtn");
 
-/* ===== SAFETY CHECK ===== */
-
-if (!calcBtn || !resetBtn || !weightEl || !yearsEl || !monthsEl) {
-  console.error("Calculator elements missing — script stopped");
-  return;
-}
-
-/* ===== CALCULATE ===== */
-
+/* CALCULATE */
 calcBtn.addEventListener("click", function(e){
   e.preventDefault();
 
@@ -112,17 +185,12 @@ calcBtn.addEventListener("click", function(e){
   `;
 
   resultEl.style.display = "block";
-  resultEl.innerHTML = "<strong>Calculation complete</strong>";
-
   summaryNote.textContent = "Includes +0.25% adjustment as per Carniraw feeding guideline.";
 
   sendHeight();
-  setTimeout(sendHeight, 200);
-  setTimeout(sendHeight, 600);
 });
 
-/* ===== RESET ===== */
-
+/* RESET */
 resetBtn.addEventListener("click", function(e){
   e.preventDefault();
 
@@ -134,29 +202,17 @@ resetBtn.addEventListener("click", function(e){
 
   metricsBody.innerHTML = "";
   resultEl.style.display = "none";
-
   summaryNote.textContent = "Results will appear after calculation.";
 
   sendHeight();
 });
 
-/* ===== AUTO RESIZE ===== */
-
-window.addEventListener("load", () => {
-  sendHeight();
-  setTimeout(sendHeight, 300);
-  setTimeout(sendHeight, 800);
-});
-
-const observer = new MutationObserver(() => {
-  sendHeight();
-});
-observer.observe(document.body, { childList: true, subtree: true });
-
-document.addEventListener("click", () => {
-  setTimeout(sendHeight, 200);
-});
+/* AUTO RESIZE */
+window.addEventListener("load", sendHeight);
 
 });
 })();
 </script>
+
+</body>
+</html>
